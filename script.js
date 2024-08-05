@@ -26,18 +26,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     saveButton.addEventListener('click', saveSegment);
 
-    // Verificar soporte de localStorage
-    function isLocalStorageAvailable() {
-        try {
-            const testKey = 'test';
-            localStorage.setItem(testKey, testKey);
-            localStorage.removeItem(testKey);
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-
     function startTimer() {
         const activity = activityInput.value.trim();
         if (!activity) {
@@ -110,57 +98,77 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         segments.push(segment);
-        saveSegmentsToStorage();
+        saveSegmentsToCookies();
         showAlert("Segmento guardado exitosamente.", 'success');
         resetTimer();
         activityInput.value = '';
     }
 
-    function saveSegmentsToStorage() {
-        if (isLocalStorageAvailable()) {
-            const savedSegments = JSON.parse(localStorage.getItem('segments')) || {};
-            const today = new Date();
-            const date = today.toLocaleDateString();
-
-            if (!savedSegments[date]) savedSegments[date] = [];
-
-            segments.forEach(segment => {
-                const existingSegment = savedSegments[date].find(s => s.activity === segment.activity && s.color === segment.color);
-                if (existingSegment) {
-                    existingSegment.time += segment.time;
-                } else {
-                    savedSegments[date].unshift(segment); // Add new segments to the start of the array
-                }
-            });
-
-            localStorage.setItem('segments', JSON.stringify(savedSegments));
-        } else {
-            alert('localStorage no está disponible. No se pueden guardar los segmentos.');
+    // Funciones para manejar cookies
+    function setCookie(name, value, days) {
+        var expires = "";
+        if (days) {
+            var date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            expires = "; expires=" + date.toUTCString();
         }
+        document.cookie = name + "=" + (value || "") + expires + "; path=/";
+    }
+
+    function getCookie(name) {
+        var nameEQ = name + "=";
+        var ca = document.cookie.split(';');
+        for (var i = 0; i < ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+
+    function eraseCookie(name) {
+        document.cookie = name + '=; Max-Age=-99999999;';
+    }
+
+    function saveSegmentsToCookies() {
+        const savedSegments = JSON.parse(getCookie('segments') || '{}');
+        const today = new Date();
+        const date = today.toLocaleDateString();
+
+        if (!savedSegments[date]) savedSegments[date] = [];
+
+        segments.forEach(segment => {
+            const existingSegment = savedSegments[date].find(s => s.activity === segment.activity && s.color === segment.color);
+            if (existingSegment) {
+                existingSegment.time += segment.time;
+            } else {
+                savedSegments[date].unshift(segment); // Add new segments to the start of the array
+            }
+        });
+
+        setCookie('segments', JSON.stringify(savedSegments), 365);
         segments = [];
         displaySavedSegments();
     }
 
     function displaySavedSegments() {
         savedSegmentsContainer.innerHTML = '';
-        if (isLocalStorageAvailable()) {
-            const savedSegments = JSON.parse(localStorage.getItem('segments')) || {};
-            Object.keys(savedSegments).forEach(date => {
-                const dateDiv = document.createElement('div');
-                dateDiv.innerHTML = `<h3>${date}</h3>`;
-                savedSegmentsContainer.prepend(dateDiv);
+        const savedSegments = JSON.parse(getCookie('segments') || '{}');
+        Object.keys(savedSegments).forEach(date => {
+            const dateDiv = document.createElement('div');
+            dateDiv.innerHTML = `<h3>${date}</h3>`;
+            savedSegmentsContainer.prepend(dateDiv);
 
-                savedSegments[date].forEach((segment, index) => {
-                    const segmentDiv = document.createElement('div');
-                    segmentDiv.className = `segment ${segment.color} alert alert-${getBootstrapAlertColor(segment.color)}`;
-                    
-                    const time = convertMsToTime(segment.time);
-                    segmentDiv.innerHTML = `${time} - ${segment.activity} <button class="delete-button btn btn-danger" onclick="confirmDeleteSegment('${date}', ${index})">Eliminar</button> <button class="edit-button btn btn-light" onclick="editSegment('${date}', ${index})">Editar</button>`;
-                    
-                    dateDiv.appendChild(segmentDiv);
-                });
+            savedSegments[date].forEach((segment, index) => {
+                const segmentDiv = document.createElement('div');
+                segmentDiv.className = `segment ${segment.color} alert alert-${getBootstrapAlertColor(segment.color)}`;
+                
+                const time = convertMsToTime(segment.time);
+                segmentDiv.innerHTML = `${time} - ${segment.activity} <button class="delete-button btn btn-danger" onclick="confirmDeleteSegment('${date}', ${index})">Eliminar</button> <button class="edit-button btn btn-light" onclick="editSegment('${date}', ${index})">Editar</button>`;
+                
+                dateDiv.appendChild(segmentDiv);
             });
-        }
+        });
     }
 
     function convertMsToTime(milliseconds) {
@@ -185,42 +193,38 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     window.deleteSegment = function(date, index) {
-        if (isLocalStorageAvailable()) {
-            const savedSegments = JSON.parse(localStorage.getItem('segments')) || {};
-            if (savedSegments[date]) {
-                savedSegments[date].splice(index, 1);
-                if (savedSegments[date].length === 0) {
-                    delete savedSegments[date];
-                }
-                localStorage.setItem('segments', JSON.stringify(savedSegments));
-                displaySavedSegments();
+        const savedSegments = JSON.parse(getCookie('segments') || '{}');
+        if (savedSegments[date]) {
+            savedSegments[date].splice(index, 1);
+            if (savedSegments[date].length === 0) {
+                delete savedSegments[date];
             }
+            setCookie('segments', JSON.stringify(savedSegments), 365);
+            displaySavedSegments();
         }
     };
 
     window.editSegment = function(date, index) {
-        if (isLocalStorageAvailable()) {
-            const savedSegments = JSON.parse(localStorage.getItem('segments')) || {};
-            if (savedSegments[date] && savedSegments[date][index]) {
-                $('#editActivityModal').modal('show');
-                editActivityInput.value = savedSegments[date][index].activity;
-                confirmEditButton.onclick = function() {
-                    const newActivity = editActivityInput.value.trim();
-                    if (newActivity !== savedSegments[date][index].activity) {
-                        const existingSegment = savedSegments[date].find((segment, idx) => segment.activity === newActivity && idx !== index);
-                        if (existingSegment) {
-                            existingSegment.time += savedSegments[date][index].time;
-                            savedSegments[date].splice(index, 1);
-                        } else {
-                            savedSegments[date][index].activity = newActivity;
-                        }
-                        localStorage.setItem('segments', JSON.stringify(savedSegments));
-                        displaySavedSegments();
-                        showAlert("Actividad editada exitosamente.", 'info');
+        const savedSegments = JSON.parse(getCookie('segments') || '{}');
+        if (savedSegments[date] && savedSegments[date][index]) {
+            $('#editActivityModal').modal('show');
+            editActivityInput.value = savedSegments[date][index].activity;
+            confirmEditButton.onclick = function() {
+                const newActivity = editActivityInput.value.trim();
+                if (newActivity !== savedSegments[date][index].activity) {
+                    const existingSegment = savedSegments[date].find((segment, idx) => segment.activity === newActivity && idx !== index);
+                    if (existingSegment) {
+                        existingSegment.time += savedSegments[date][index].time;
+                        savedSegments[date].splice(index, 1);
+                    } else {
+                        savedSegments[date][index].activity = newActivity;
                     }
-                    $('#editActivityModal').modal('hide');
-                };
-            }
+                    setCookie('segments', JSON.stringify(savedSegments), 365);
+                    displaySavedSegments();
+                    showAlert("Actividad editada exitosamente.", 'info');
+                }
+                $('#editActivityModal').modal('hide');
+            };
         }
     };
 
