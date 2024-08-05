@@ -138,7 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!savedSegments[date]) savedSegments[date] = [];
 
         segments.forEach(segment => {
-            const existingSegment = savedSegments[date].find(s => s.activity === segment.activity && s.color === segment.color);
+            const existingSegment = savedSegments[date].find(s => s.activity === segment.activity);
             if (existingSegment) {
                 existingSegment.time += segment.time;
             } else {
@@ -209,6 +209,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (savedSegments[date] && savedSegments[date][index]) {
             $('#editActivityModal').modal('show');
             editActivityInput.value = savedSegments[date][index].activity;
+            
+            // Forzar el enfoque en el campo de entrada
+            setTimeout(() => {
+                editActivityInput.focus();
+            }, 500); // Esperar un breve momento para asegurar que el modal esté completamente abierto
+
             confirmEditButton.onclick = function() {
                 const newActivity = editActivityInput.value.trim();
                 if (newActivity !== savedSegments[date][index].activity) {
